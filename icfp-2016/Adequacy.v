@@ -3,37 +3,31 @@
 Require Import List.
 Require Import Program.
 Require Import FunctionalExtensionality.
-Require Import EqNat. 
+Require Import EqNat.
+
+Require Import LiftedTypes.
+Require Import MyReals.
+
 
 (* BKH sets these.  I don't knowhow to get it to work without them *)
-Set Implicit Arguments.         
-Set Asymmetric Patterns.
+(* Set Implicit Arguments.          *)
+(* Set Asymmetric Patterns. *)
 
 (* This doesn't seem to do anything:    *)
 (* Set Elimination Schemes. *)
 
 (* **************************************************************** *)
 
-Inductive lifted (X : Type): Type :=
-  | bottom : lifted X
-  | lift : X -> lifted X.
+(* Inductive Unit : Type := *)
+(* | unitval : Unit. *)
 
-Definition strict  {X: Type} {Y : Type} (v :lifted X)  (f : X -> (lifted Y)) : (lifted Y) :=
-  match v with
-    | bottom  => bottom Y
-    | lift x => (f x)
-  end.
+(* (* Fake functions *) *)
+(* Definition left_half (u : Unit) := u. *)
+(* Definition right_half (u : Unit) := u. *)
+(* Definition uniform_dist (u : Unit) := u. *)
 
-Inductive Unit : Type :=
-| unitval : Unit.
-
-(* Fake functions *)
-Definition left_half (u : Unit) := u.
-Definition right_half (u : Unit) := u.
-Definition uniform_dist (u : Unit) := u.
-
-Inductive real : Type :=
-| unit_real : Unit -> real.
+(* Inductive real : Type := *)
+(* | unit_real : Unit -> real. *)
 
 (* Object Types *)
 
@@ -76,14 +70,17 @@ Inductive Var : Tyenv -> Otype -> Type :=
 | var_0 : forall (G : Tyenv) (o : Otype), Var (cons o G) o
 | var_S : forall G o o', Var G o -> Var (cons o' G) o.
 
+Arguments var_0 {_ _}.
+Arguments var_S {_ _ _} _.
+
 Fixpoint env_lookup
          {G : Tyenv}
          {o : Otype}
          (v : Var G o) : (den_env G) -> (den_type o) 
 :=  match v 
   with
-    | var_0 _ _ => fun venv => fst venv
-    | var_S _ _ _ v'  => fun venv => env_lookup v' (snd venv)
+    | var_0 => fun venv => fst venv
+    | var_S v'  => fun venv => env_lookup v' (snd venv)
     end.
 
 (* Simply reversing the arguments to env_lookup doesn't work, so
@@ -125,6 +122,21 @@ Val G : Otype -> Type :=
                         Val G (Funtype o (Meastype o')) ->
                         Val G (Meastype o')
 | returnval : forall a, Val G a -> Val G (Meastype a).
+
+Arguments valexp {G o} _.
+Arguments appexp {G a b} _ _.
+Arguments bindexp {G o o'} _ _.
+Arguments returnexp {G o} _.
+Arguments constexp {G} _.
+Arguments varexp {G o} _.
+Arguments absexp {G o o'} _.
+Arguments uniformval {G}.
+(* Arguments distval {G}. *)
+Arguments bindval {G o o'} _ _.
+Arguments returnval {G a} _.
+
+
+
 
 (* Coq doesn't generate the correct mutual induction hypotheses
    for these, so we have to help it along. *)
@@ -168,21 +180,21 @@ Function den_val {G o} (val : Val G o) r : (den_type o)
   :=
     match val with
       | constexp w => (coerce_real w)
-      | varexp  _ var => (apply_env r var)
-      | absexp o' o e => (fun val => den_exp e (cons_env val r))
+      | varexp var => (apply_env r var)
+      | absexp  e => (fun val => den_exp e (cons_env val r))
       | uniformval => uniformop
-      | bindval _ _ s f => bindop (den_val s r) (den_val f r)
-      | returnval _ v => returnop (den_val v r)
+      | bindval s f => bindop (den_val s r) (den_val f r)
+      | returnval v => returnop (den_val v r)
     end
 with
 den_exp {G o} (exp : (Exp  G o)) (r : (den_env G)) : (lifted (den_type o))
   :=
   match exp with
-    | valexp _ val => lift (den_val val r)
-    | appexp _ _ e1 e2 => cbv (den_exp e1 r) (den_exp e2 r)
-    | returnexp _ e1 => strict (den_exp e1 r)
+    | valexp val => lift (den_val val r)
+    | appexp e1 e2 => cbv (den_exp e1 r) (den_exp e2 r)
+    | returnexp e1 => strict (den_exp e1 r)
                                (fun a => (lift (returnop a)))
-    | bindexp _ _ e1 e2
+    | bindexp e1 e2
       => strict (den_exp e1 r)
                 (fun s => strict (den_exp e2 r)
                                  (fun f => (lift (bindop s f))))
@@ -221,8 +233,8 @@ Program Definition cons_subst {G G' o}  (* fixpoint doesn't work here, I *)
 : (Subst (o::G) G') :=
   fun o' (var : Var (o::G) o') =>
     match var with
-      | var_0 _ _ => val
-      | var_S _ _ _ v' => s _ v'
+      | var_0 => val
+      | var_S v' => s _ v'
     end.
 
 (*  singleton substitution [val/*1*] *)
@@ -232,14 +244,14 @@ Function subst1 {G o} (val : Val G o) : (Subst (o::G) G) :=
 
 Definition hd_subst {G G':Tyenv}{o}
            (s : Subst (o::G) G')
-: Val G' o := subst_lookup (var_0 _ _) s.
+: Val G' o := subst_lookup var_0 s.
 
 
 Definition tl_subst {G G' o}
            (s : Subst (o::G) G')
 : Subst G G'
   :=
-    fun o' v => s o' (var_S o v).
+    fun o' v => s o' (var_S v).
 
 (* **************** Renamings **************** *)
 
@@ -266,8 +278,8 @@ Program Definition cons_renaming {G G' o}
 : (Renaming (o::G) G')
    := fun o' (in_var : Var (o::G) o') =>
         match in_var with
-          | var_0 _ _ => var
-          | var_S _ _ _ v' => r o' v'
+          | var_0  => var
+          | var_S v' => r o' v'
         end.
 
 (* pad_renaming: Given that we have a renaming r from G to G', 
@@ -279,30 +291,33 @@ Program Definition pad_renaming {G G' o} (ren : Renaming G G')
   :=
     fun o' v =>
       match v with
-        | var_0 _ _  => var_0 _ _
-        | var_S _ _ _ v' => var_S _ (ren _ v')
+        | var_0 => @var_0 _ _
+        | var_S v' => var_S (ren o v')
       end.
+
+
+
 
 (* apply renaming.  Our naming convention calls these ap and ap_Re *)
 
 Fixpoint ap_Rv {G G' o} (ren : Renaming G G')
          (val : Val G o) : (Val G' o) :=
   match val with
-    | varexp _ var => varexp (ren _ var)
-    | absexp _ _ e => absexp (ap_Re (pad_renaming ren) e)
+    | varexp var => varexp (ren _ var)
+    | absexp e => absexp (ap_Re (pad_renaming ren) e)
     | constexp n => @constexp _ n 
     | uniformval => @uniformval _
-    | bindval _ _ e1 e2 => bindval (ap_Rv ren e1) (ap_Rv ren e2)
-    | returnval _ v => returnval (ap_Rv ren v)
+    | bindval e1 e2 => bindval (ap_Rv ren e1) (ap_Rv ren e2)
+    | returnval v => returnval (ap_Rv ren v)
   end
 with
 ap_Re {G G' o} (ren : Renaming G G') (exp : Exp G o)
 : (Exp G' o) :=
   match exp with
-    | valexp _ val => valexp (ap_Rv ren val)
-    | appexp _ _ e1 e2 => appexp (ap_Re ren e1) (ap_Re ren e2)
-    | bindexp _ _ e1 e2 => bindexp (ap_Re ren e1) (ap_Re ren e2)
-    | returnexp _ e1 => returnexp (ap_Re ren e1)
+    | valexp val => valexp (ap_Rv ren val)
+    | appexp e1 e2 => appexp (ap_Re ren e1) (ap_Re ren e2)
+    | bindexp e1 e2 => bindexp (ap_Re ren e1) (ap_Re ren e2)
+    | returnexp e1 => returnexp (ap_Re ren e1)
   end.
 
 Hint Resolve ap_Rv ap_Re.

@@ -1,9 +1,9 @@
 -R . ICFP-2016
-Adequacy.v
 LiftedTypes.v
 Measures.v
 MyReals.v
 Types.v
 Weights.v
 ImportanceSampling.v
+Adequacy.v
 
