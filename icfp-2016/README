@@ -1,0 +1,42 @@
+This directory contains Coq developments for our ICFP 2016 submission.
+
+ImportanceSampling.v contains the proof of Theorem 3, relating the
+measure and the sampling semantics.  This proof is done for a superset
+of the ICFP language, including an additional unknown distribution
+(itself parameterized over the reals), in addition to 'uniform'.
+
+MyReals.v gives a lightweight axiomatization of all the facts we
+need about the real numbers.
+
+Measures.v gives a similar lightweight axiomatization of measure
+theory.  Here we model a measure as an integrator (see, e.g., Pollard's
+book).  If
+
+mu : Measure A
+and
+f : A -> real,
+
+then (mu f) is synonomous with (integral f d(mu)).  Note that we do
+not keep track of whether f is measurable.
+
+Adequacy.v contains the proof of Theorem 5, relating the the sampling
+semantics with the operational (rejection) semantics.  This
+development antedates the other one, so the Coq code itself is
+considerably less pretty.  In particular, it consists of a single long
+file, rather than depending on the various header files used in
+ImportanceSampling.v.  (Sorry about that; we hope to fix this sometime
+soon.  Send us a pull request!).
+
+Note that neither of these developments includes the 'rec' operator,
+as that would get us too far afield into order-theoretic issues, and
+our goal in this development was to make sure we had all of the
+'lift's and 'strict's in the right places, and had all of the
+quantification in Theorem 5 right.
+
+The definitions of 'bind' and friends in Adequacy.v were developed
+during the writing of the ICFP submission; we discovered some bugs in
+the process, which were of course fixed in the submission.  The
+proofs, however, were done post-hoc, and should not be considered as
+part of our submission.
+
+
