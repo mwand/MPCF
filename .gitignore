@@ -1,3 +1,34 @@
+# my .gitignore :
+
+*~
+#*#
+.#*
+*.bak
+.svn
+*.log
+~$*
+*.1
+*.2
+Thumbs.db
+desktop.ini
+TAGS
+*.aux
+*.log
+*.out
+*.dvi
+auto
+compiled
+*.stackdump
+_gsdata_
+*.synctex.gz
+*.vo
+*.glob
+*.v.d
+Makefile.coq
+
+# Windows files, from github
+
+
 # Windows image file caches
 Thumbs.db
 ehthumbs.db
@@ -45,3 +76,4 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+
