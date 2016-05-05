@@ -1,0 +1,5 @@
+This repo is for Coq developments pertaining to our work on MPCF, a
+measure-theoretic version of PCF.
+
+Right now there is only one folder, containing developments pertaining
+to our ICFP 2016 submission.
