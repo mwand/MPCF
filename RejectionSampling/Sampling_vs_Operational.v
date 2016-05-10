@@ -16,7 +16,7 @@ Require Import SamplingSemantics.
 Require Import Substitutions.
 Require Import OperationalSemantics.
 
-(* false_invert: tactic from SF *)
+(* false_invert: a tactic from SF *)
 (* false_invert proves any goal provided there is at least one *)
 (* hypothesis H in the context that can be proved absurd by calling *)
 (* inversion H. *)
@@ -32,11 +32,21 @@ Ltac false_invert :=
 
 (* The Logical Relation *)
 
-(* Defined as a fixed point over Otypes and lifted Otypes *)
+(* The relation will be defined compositionally in Otype. *)
+
+(* First we build some combinators for the different cases. *)
 
 Definition EqReal : (den_Mtype Real_type) ->
                     (den_Mtype Real_type) -> Prop :=
   fun v1 v2 => (v1 = v2).
+
+
+(* Combinators for Mtypes:  *)
+
+Function Real_Rel (d : (den_Mtype Real_type))
+         (val : (Val nil (Stype Real_type)))
+  :=
+    exists n, val = constexp n /\ d = n.
 
 Function Prod_Rel {ma mb : Mtype}
          (RA : (den_Mtype ma) -> (Val nil (Stype ma)) -> Prop)
@@ -46,16 +56,6 @@ Function Prod_Rel {ma mb : Mtype}
   := 
     exists e1 e2, val = prodval e1 e2 /\
                   (RA (fst p) e1) /\ (RB (snd p) e2).
-
-Function Real_Rel (d : (den_Mtype Real_type))
-         (val : (Val nil (Stype Real_type)))
-  :=
-    exists n, val = constexp n /\ d = n.
-
-
-
-(* relation between syntactic values of measurable type and *)
-(* denotations of that type *)
 
 Fixpoint Mtype_Rel (m : Mtype)
   : (den_typeS (Stype m)) -> (Val nil (Stype m)) -> Prop :=
@@ -76,11 +76,11 @@ Function lift_Rel {o : Otype} (R : (den_typeS o) -> (Val nil o) -> Prop)
       | lift a => exists v, ev e v /\ R a v
     end.
 
-Definition  Fun_Rel {o1 o2}
-            (Rel1 : (den_typeS o1) -> (Val [] o1) -> Prop)
-            (Rel2 : (lifted (den_typeS o2)) -> (Exp [] o2) -> Prop)
-            (f1 : (den_typeS o1) -> (lifted (den_typeS o2)))
-            (val1 : Val nil (Funtype o1 o2))
+Definition Fun_Rel {o1 o2}
+           (Rel1 : (den_typeS o1) -> (Val [] o1) -> Prop)
+           (Rel2 : (lifted (den_typeS o2)) -> (Exp [] o2) -> Prop)
+           (f1 : (den_typeS o1) -> (lifted (den_typeS o2)))
+           (val1 : Val nil (Funtype o1 o2))
 : Prop :=
   exists e, val1 = absexp e /\
   forall (a1 : den_typeS o1) (val2: Val [] o1),
@@ -97,16 +97,17 @@ Definition Meas_Rel
       | lift a => exists c', evs u c c' /\ Mtype_Rel m a c'
     end.
 
-(* This is as far as I got.  Need to fix up Rel to match the types in *)
-(* Types.v and ImportanceSampling.v *)
+(* Now the main relation simply branches depending on its Otype argument: *)
 
 Fixpoint Rel {o : Otype} : (den_typeS o) -> (Val nil o) -> Prop :=
   match o with
-  | Stype m => fun d => Mtype_Rel m d
+  | Stype m => Mtype_Rel m
   | Funtype o1 o2 => Fun_Rel (@Rel o1)  (lift_Rel (@Rel o2)) 
   | Meastype m => Meas_Rel m
   end.
 
+
+(* Extend the relation to environments based on a type environment G*)
 
 Fixpoint Rel_Env {G} : (den_env G) -> (Subst G nil) -> Prop :=
   match G with
@@ -152,97 +153,6 @@ Proof.
   apply H0.
   apply H.
 Qed.
-
-
-(* Lemma bind_preserves_Rel : *)
-(*   forall m m' *)
-(*          (s1 : Unit -> lifted (den_typeS (Stype m))) *)
-(*          (f : (den_typeS (Stype m)) *)
-(*               -> lifted *)
-(*                    (Unit *)
-(*                     -> lifted (den_typeS (Stype m')))) *)
-(*          c1 c2, *)
-(*     Meas_Rel m s1 c1 -> *)
-(*     Fun_Rel (Rel ) (lift_Rel (Meas_Rel m')) f c2 -> *)
-(*     Meas_Rel m' (bindopS s1 f) (bindval c1 c2). *)
-(* Proof.     *)
-(*   intros. *)
-(*   unfold Meas_Rel. *)
-(*   intros u. *)
-(*   destruct (bindopS s1 f u) as [| b] eqn: f_u; auto. *)
-(*   unfold bindopS in f_u. *)
-(*   destruct (s1 (left_half u)) as [| a] eqn: s1_uL; try false_invert; auto. *)
-
-
-(*   (* (s1 u_L) = lift a *) *)
-(*   destruct (f a) as [| s'] eqn: f_a; try false_invert; auto. *)
-(*   simpl in f_u. *)
-(*   rewrite f_a in f_u. *)
-(*   simpl in f_u. *)
-(*   inversion f_u. *)
-
-(*   (* (f a) = lift s' *) *)
-(*   destruct (s' (right_half u)) as [| b'] eqn: s'_uR; auto. *)
-
-(*   (* (s' u_R) = bottom *) *)
-(*   simpl in f_u. *)
-(*   rewrite f_a in f_u. *)
-(*   simpl in f_u. *)
-(*   rewrite s'_uR in f_u. *)
-(*   inversion f_u. *)
-
-(*   (* (s' u_R) = lift b *) *)
-(*   simpl in f_u. *)
-(*   rewrite f_a in *. *)
-(*   simpl in f_u. *)
-
-(*   assert (Hc3: exists c3, (evs (left_half u) c1 c3) /\ Rel a c3). *)
-(*   { rewrite s'_uR in *. *)
-(*     inversion f_u. *)
-(*     rewrite H2 in *. *)
-(*     clear f_u. *)
-(*     unfold Fun_Rel in H0. *)
-(*     inversion H0 as [e2]. clear H0. inversion H1. clear H1. *)
-(*     unfold Meas_Rel in H. *)
-(*     specialize (H (left_half u)). *)
-(*     rewrite s1_uL in H. *)
-(*     inversion H as [c3]; clear H. *)
-(*     exists c3. *)
-(*     apply H1. } *)
-    
-(*   inversion Hc3 as [c3]; clear Hc3. *)
-(*   inversion H1; clear H1. *)
-(*   unfold Fun_Rel in H0. *)
-(*   inversion H0 as [e2']; simpl; clear H0. *)
-(*   inversion H1; clear H1. *)
-(*   specialize (H4 a c3 H3). *)
-(*   unfold lift_Rel in H4. *)
-(*   rewrite f_a in H4. *)
-(*   inversion H4 as [c4]; clear H4. *)
-(*   inversion H1; clear H1. *)
-(*   unfold Meas_Rel in H5. *)
-(*   specialize (H5 (right_half u)). *)
-(*   rewrite s'_uR in *. *)
-(*   inversion H5 as [c5]; clear H5. *)
-(*   exists c5. *)
-(*   inversion H1; clear H1. *)
-(*   inversion f_u as [eq_b] ; clear f_u. *)
-(*   rewrite eq_b in *. *)
-(*   split. *)
-(*   assert (H10: ev (appexp (valexp c2) (valexp c3)) c4). *)
-(*   { rewrite H0 in *. *)
-(*     assert (H12: ev (valexp (absexp e2')) (absexp e2')) by apply ev_val. *)
-(*     assert (H13: ev (valexp c3) c3) by apply ev_val. *)
-
-(*     Check ev_app. *)
-(*     apply (ev_app H12 H13 H4). *)
-(*   } *)
-(*   apply (evs_bind H2 H10 H5). *)
-(*   (* woo-hoo! *) *)
-(*   apply H6. *)
-(* Qed. *)
-
-(* Here's a cleaner proof of this. *)
 
 Lemma bind_preserves_Rel :
   forall m m'
@@ -307,8 +217,6 @@ Proof.
   apply (evs_bind Red1a Red2 Red3a).
   apply Red3b.
 Qed.
-
-
 
 Hint Resolve bind_preserves_Rel.
 
