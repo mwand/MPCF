@@ -1,0 +1,66 @@
+This directory contains a consistent set of developments for the
+language in the ICFP-2016 submission.
+
+This language includes products of measurable types.
+
+The development is based on shared files, so that the developments are
+all talking about the same language and semantics.
+
+
+Measures.v gives a lightweight axiomatization of measure
+theory.  Here we model a measure as an integrator (see, e.g., Pollard's
+book).  If
+
+mu : Measure A
+and
+f : A -> real,
+
+then (mu f) is synonomous with (integral f d(mu)).  Note that we do
+not keep track of whether f is measurable.
+
+MyReals.v gives a similar lightweight axiomatization of all the facts we
+need about the real numbers.
+
+Weights.v gives additional axioms for weights (mostly not used in this
+development).
+
+Types.v defines the measurable types (Mtypes) and object types
+(Otypes) of the language.
+
+Syntax.v gives the syntax of the language used throughout.
+
+MeasureSemantics.v gives the measure semantics (Section 4 of the ICFP
+submission) 
+
+SamplingSemantics.v gives the sampling semantics (Section 5.1) This is
+a rejection semantics in that failing observations may be modeled by
+non-terminating computations.
+
+Measure_vs_Sampling.v proves the connection between the Measure
+semantics and the Sampling semantics (Section 5.2, Theorem 3).
+
+Substitutions.v provides some infrastructure for defining the
+operational semantics and some lemmas about it.
+
+OperationalSemantics.v gives the operational semantics.
+
+Sampling_vs_Operational.v proves the adequacy of the operational
+semantics relative to the sampling semantics (Theorem 5).
+
+Known limitations of the proofs:
+
+1.  We assume that measures can integrate over arbitrary functions,
+not just measurable ones.  This allows us to ignore the issue of
+measurability of the kernel functions (page 4, last para of section 4
+and also footnote 1).
+
+2.  We do not proves Theorem 4 (Rel is closed under omega-chains on
+the left), as this would get us too far afield into order theory.
+
+3.  We prove only the adequacy of the operational semantics, not its
+soundness, which we presume is easy.
+
+
+
+
+
