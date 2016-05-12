@@ -57,6 +57,8 @@ Inductive ev : forall {o: Otype}, Exp nil o -> Val nil o -> Prop :=
     ev e c ->
     ev (returnexp e) (returnval c).
 
+Hint Constructors ev.
+
 (* these could be replaced by saying
    ev_val : forall {o} (e : /etc/) ...
  *)
