@@ -31,31 +31,31 @@ Inductive ev : forall {o: Otype}, Exp nil o -> Val nil o -> Prop :=
                     v w,
     ev e (prodval v w) -> ev (proj2exp e) w
 
-  | ev_app : forall o o' (e1 : Exp nil (Funtype o o'))
-                    (e2 : Exp nil o)
-                    e' v w,
-               ev e1 (absexp e')
-               -> ev e2 v
-               -> ev (ap_Se (subst1 v) e') w
-               -> ev (appexp e1 e2) w
-  | ev_bind : forall (o o': Mtype) 
-                     (e1 : Exp nil (Meastype o))
-                     (c1 : Val nil (Meastype o))
+| ev_app : forall o o' (e1 : Exp nil (Funtype o o'))
+                  (e2 : Exp nil o)
+                  e' v w,
+    ev e1 (absexp e')
+    -> ev e2 v
+    -> ev (ap_Se (subst1 v) e') w
+    -> ev (appexp e1 e2) w
+| ev_bind : forall (o o': Mtype) 
+                   (e1 : Exp nil (Meastype o))
+                   (c1 : Val nil (Meastype o))
 
-                     (e2 : Exp nil (Funtype (Stype o)
-                                            (Meastype o')))
+                   (e2 : Exp nil (Funtype (Stype o)
+                                          (Meastype o')))
 
-                     (c2 : Val nil (Funtype (Stype o)
-                                            (Meastype o'))),
+                   (c2 : Val nil (Funtype (Stype o)
+                                          (Meastype o'))),
 
-                ev e1 c1 ->
-                ev e2 c2 ->
-                ev (bindexp e1 e2) (bindval c1 c2)
-  | ev_return : forall o
-                       (e : Exp nil (Stype o))
-                       (c : Val nil (Stype o)),
-                  ev e c ->
-                  ev (returnexp e) (returnval c).
+    ev e1 c1 ->
+    ev e2 c2 ->
+    ev (bindexp e1 e2) (bindval c1 c2)
+| ev_return : forall o
+                     (e : Exp nil (Stype o))
+                     (c : Val nil (Stype o)),
+    ev e c ->
+    ev (returnexp e) (returnval c).
 
 (* these could be replaced by saying
    ev_val : forall {o} (e : /etc/) ...
@@ -87,7 +87,8 @@ Inductive evs : forall {o: Mtype},
                evs (right_half u) c4 c5 w2 ->
                evs u (bindval c1 c2) c5 (prod_weights w1 w2)
 | evs_dist : forall {p u},
-    evs u (distval (constexp p))
+    evs u
+        (distval (constexp p))
         (constexp (unit_real u))
         (density_1 p (unit_real u)).
                     
