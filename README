@@ -1,5 +1,11 @@
 This repo is for Coq developments pertaining to our work on MPCF, a
 measure-theoretic version of PCF.
 
-Right now there is only one folder, containing developments pertaining
-to our ICFP 2016 submission.
+ICFP-2016 contains a development of a language largely the same as the one in
+our ICFP submission.
+
+ImportanceSampling adds an arbitrary (non-uniform) primitive
+distribution with a density function; samples are weighted according
+to their density.
+
+
