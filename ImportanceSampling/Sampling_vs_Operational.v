@@ -340,6 +340,26 @@ Qed.
 
 Hint Resolve unif_preserves_Rel.
 
+Lemma dist_preserves_Rel :
+  forall r,
+    Meas_Rel _ (distvalS r) (distval (constexp r)).
+Proof.
+  intros.
+  unfold Meas_Rel.
+  intros.
+  simpl.
+  eexists.
+  split.
+  apply evs_dist.
+  unfold Real_Rel.
+  eauto.
+Qed.
+
+(* This should really be of the form
+  forall d v, Rel d v -> Meas_Rel _ (distvalS d) (distval v)
+
+ *)
+
 (* **************************************************************** *)
 
 (* The Fundamental Theorem *)
@@ -359,6 +379,143 @@ Definition Fun_Thm_Val G o   (val: Val G o):=
          (s : Subst G nil),
     Rel_Env r s
     -> @Rel o (den_valS val r) (ap_Sv s val).
+
+(* Tactics for proving the fundamental theorem *)
+
+(* Ltac helpers *)
+Ltac invert_ex :=
+  repeat
+    match goal with
+    | [ H : exists _, _ |- _ ] => inversion H; clear H; intuition
+    end.
+
+Ltac solve_ex := invert_ex; try (eexists; intuition).
+
+Ltac auto_specialize :=
+  repeat
+    match goal with
+    | [ H : forall x : ?a, _, v : ?a |- _ ] => specialize H with (x:=v)
+    | [ H : ?a -> _, v : ?a |- _ ] =>
+      let Hv := fresh H in
+      apply H in v as Hv; clear H
+    end.
+
+Ltac destruct_lift :=
+  match goal with
+  | [ H : lift_Rel _ ?x _ |- _ ] =>
+    match x with
+    | bottom => fail 1
+    | lift _ => fail 1
+    | _ => destruct x
+    end
+  end.
+
+Theorem Fund_Thm_NewProof : forall G o exp, @Fun_Thm_Exp G o exp.
+Proof.
+  apply (exp_val_rec Fun_Thm_Exp Fun_Thm_Val);
+  unfold Fun_Thm_Exp;
+  unfold Fun_Thm_Val;
+  simpl; intros;
+    (* this script knocks off 5 cases *)
+  try solve [auto_specialize; eauto;
+                  repeat destruct_lift;
+                  unfold Prod_Rel, lift_Rel in *;
+                  solve_ex; subst; eauto].
+  { (* valexp *)
+    auto_specialize.
+    eexists.
+    split; eauto using ev_val.
+    }
+
+  { (* prodexp *)
+    auto_specialize.
+    repeat (destruct_lift; simpl in *; auto).
+    solve_ex.
+    eauto using ev_prod.
+    unfold Prod_Rel.
+    eexists.
+    eexists.
+    split; eauto.
+    }
+    
+  { (* proj1exp *)
+    auto_specialize.
+    destruct_lift; simpl in *; auto.
+    invert_ex.
+    unfold Prod_Rel in *.
+    invert_ex.
+    subst.
+    eauto using ev_proj1.
+  }
+  
+  { (* proj2exp *)
+    auto_specialize.
+    destruct_lift; simpl in *; auto.
+    invert_ex.
+    unfold Prod_Rel in *.
+    invert_ex.
+    subst.
+    eauto using ev_proj2.
+  } 
+
+  { (* appexp e e0 *)
+    auto_specialize.
+    repeat destruct_lift; eauto.
+    simpl in *.
+    invert_ex.
+    destruct (d0 d) eqn: d0_d; unfold lift_Rel; auto.
+    unfold Fun_Rel in *.
+    invert_ex.
+    subst.
+    auto_specialize.
+    rewrite d0_d in *.
+    simpl in H4.
+    invert_ex.
+    eauto using ev_app.
+    }
+
+  { (* bindexp e e0 *)
+    auto_specialize.
+    repeat (destruct_lift; simpl in *; auto).
+    invert_ex.
+    eauto using ev_bind, bind_preserves_Rel'.
+  }
+
+  { (* returnexp e *)
+    auto_specialize.
+    repeat (destruct_lift; simpl in *; auto).
+    invert_ex.
+    eauto using ev_return, return_preserves_Rel.
+  }
+
+  (* Now on to values: *)
+
+  { (* varexp *)
+    apply lookup_preserves_Rel.
+    assumption.
+  }
+
+  { (* absexp *)
+    unfold Fun_Rel.
+    solve_ex.
+    replace (ap_Se (subst1 val2) (ap_Se (shift_subst s) e))
+    with (ap_Se (cons_subst val2 s) e)
+      by (rewrite <- cSS_subst1, <- ap_cSS_e; auto).
+    auto.
+    }
+
+  { (* distval *)
+    auto_specialize.
+    unfold Real_Rel in H1.
+    invert_ex.
+    subst.
+    rewrite H1.
+    apply dist_preserves_Rel.
+    }
+Qed.
+
+
+
 
 Theorem Fund_Thm: forall G o exp, @Fun_Thm_Exp G o exp.
 Proof.
@@ -518,22 +675,13 @@ Proof.
   { (* distval *)
     (* this should be turned into a lemma distval_preserves_Rel *)
     specialize (H _ _ H0).
-    unfold Meas_Rel.
-    intros.
-    simpl.
-    exists (constexp (unit_real u)).
-    split.
     unfold Rel in H.
     unfold Mtype_Rel in H.
     unfold Real_Rel in H.
-    inversion H; clear H.
-    inversion H1.
+    inversion H; clear H; intuition.
+    subst.
     rewrite H.
-    rewrite H2.
-    apply evs_dist.
-    unfold Real_Rel.
-    exists (unit_real u).
-    auto.
+    apply dist_preserves_Rel.
   }
 
 
