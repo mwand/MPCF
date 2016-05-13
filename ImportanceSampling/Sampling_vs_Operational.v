@@ -27,6 +27,25 @@ Ltac false_invert :=
     [ H:_ |- _ ] => solve [ inversion H ]
   end.
 
+(* Ltac helpers *)
+Ltac invert_ex :=
+  repeat
+    match goal with
+    | [ H : exists _, _ |- _ ] => inversion H; clear H; intuition
+    end.
+
+Ltac solve_ex := invert_ex; try (eexists; intuition).
+
+Ltac auto_specialize :=
+  repeat
+    match goal with
+    | [ H : forall x : ?a, _, v : ?a |- _ ] => specialize H with (x:=v)
+    | [ H : ?a -> _, v : ?a |- _ ] =>
+      let Hv := fresh H in
+      apply H in v as Hv; clear H
+    end.
+
+
 
 (* **************************************************************** *)
 
@@ -77,6 +96,16 @@ Function lift_Rel {o : Otype} (R : (den_typeS o) -> (Val nil o) -> Prop)
       | lift a => exists v, ev e v /\ R a v
     end.
 
+Ltac destruct_lift :=
+  match goal with
+  | [ H : lift_Rel _ ?x _ |- _ ] =>
+    match x with
+    | bottom => fail 1
+    | lift _ => fail 1
+    | _ => destruct x
+    end
+  end.
+
 Definition Fun_Rel {o1 o2}
            (Rel1 : (den_typeS o1) -> (Val [] o1) -> Prop)
            (Rel2 : (lifted (den_typeS o2)) -> (Exp [] o2) -> Prop)
@@ -125,21 +154,16 @@ Lemma lookup_preserves_Rel : forall G (o : Otype)
     Rel_Env r s -> Rel (apply_env r var) (s _ var).
 Proof.
   intros.
-  induction G as [| o' G'].
-  (* G = [] *)
-  inversion var.
+  induction G as [| o' G'];
+    try false_invert.
   (* G = o' :: G' *)
-  induction var as [| G''].
+  induction var as [| G'']; simpl.
   (* var = var_0 *)
-  simpl.
-  inversion H.
-  apply H0.
+  - inversion H.
+    assumption.
   (* var = var_S v' *)
-  apply (IHvar (snd r) (tl_subst s)).
-  apply H.
-  intros.
-  apply IHG'.
-  apply H0.
+  - apply (IHvar _ (tl_subst s)); auto.
+    apply H.
 Qed.
 
 Lemma extend_env_preserves_Rel :
@@ -147,11 +171,7 @@ Lemma extend_env_preserves_Rel :
     Rel_Env r s -> Rel d val
     -> Rel_Env (cons_env d r) (cons_subst val s).
 Proof.
-  intros.
-  simpl.
-  split.
-  apply H0.
-  apply H.
+  simpl; auto.
 Qed.
 
 Lemma bind_preserves_Rel :
@@ -379,35 +399,6 @@ Definition Fun_Thm_Val G o   (val: Val G o):=
          (s : Subst G nil),
     Rel_Env r s
     -> @Rel o (den_valS val r) (ap_Sv s val).
-
-
-(* Ltac helpers *)
-Ltac invert_ex :=
-  repeat
-    match goal with
-    | [ H : exists _, _ |- _ ] => inversion H; clear H; intuition
-    end.
-
-Ltac solve_ex := invert_ex; try (eexists; intuition).
-
-Ltac auto_specialize :=
-  repeat
-    match goal with
-    | [ H : forall x : ?a, _, v : ?a |- _ ] => specialize H with (x:=v)
-    | [ H : ?a -> _, v : ?a |- _ ] =>
-      let Hv := fresh H in
-      apply H in v as Hv; clear H
-    end.
-
-Ltac destruct_lift :=
-  match goal with
-  | [ H : lift_Rel _ ?x _ |- _ ] =>
-    match x with
-    | bottom => fail 1
-    | lift _ => fail 1
-    | _ => destruct x
-    end
-  end.
 
 Theorem Fund_Thm: forall G o exp, @Fun_Thm_Exp G o exp.
 Proof.
