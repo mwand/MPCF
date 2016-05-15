@@ -142,6 +142,8 @@ Proof.
   apply H0.
 Qed.
 
+Hint Resolve lookup_preserves_Rel.
+
 Lemma extend_env_preserves_Rel :
   forall (o: Otype) G r (s : Subst G nil) (d : den_typeS o) (val: Val nil o),
     Rel_Env r s -> Rel d val
@@ -410,53 +412,16 @@ Ltac destruct_lift :=
     end
   end.
 
-Theorem Fund_Thm_NewProof : forall G o exp, @Fun_Thm_Exp G o exp.
+Theorem Fund_Thm: forall G o exp, @Fun_Thm_Exp G o exp.
 Proof.
   apply (exp_val_rec Fun_Thm_Exp Fun_Thm_Val);
   unfold Fun_Thm_Exp;
   unfold Fun_Thm_Val;
   simpl; intros;
-    (* this script knocks off 5 cases *)
   try solve [auto_specialize; eauto;
                   repeat destruct_lift;
                   unfold Prod_Rel, lift_Rel in *;
                   solve_ex; subst; eauto].
-  { (* valexp *)
-    auto_specialize.
-    eexists.
-    split; eauto using ev_val.
-    }
-
-  { (* prodexp *)
-    auto_specialize.
-    repeat (destruct_lift; simpl in *; auto).
-    solve_ex.
-    eauto using ev_prod.
-    unfold Prod_Rel.
-    eexists.
-    eexists.
-    split; eauto.
-    }
-    
-  { (* proj1exp *)
-    auto_specialize.
-    destruct_lift; simpl in *; auto.
-    invert_ex.
-    unfold Prod_Rel in *.
-    invert_ex.
-    subst.
-    eauto using ev_proj1.
-  }
-  
-  { (* proj2exp *)
-    auto_specialize.
-    destruct_lift; simpl in *; auto.
-    invert_ex.
-    unfold Prod_Rel in *.
-    invert_ex.
-    subst.
-    eauto using ev_proj2.
-  } 
 
   { (* appexp e e0 *)
     auto_specialize.
@@ -471,22 +436,8 @@ Proof.
     rewrite d0_d in *.
     simpl in H4.
     invert_ex.
-    eauto using ev_app.
+    eauto.
     }
-
-  { (* bindexp e e0 *)
-    auto_specialize.
-    repeat (destruct_lift; simpl in *; auto).
-    invert_ex.
-    eauto using ev_bind, bind_preserves_Rel'.
-  }
-
-  { (* returnexp e *)
-    auto_specialize.
-    repeat (destruct_lift; simpl in *; auto).
-    invert_ex.
-    eauto using ev_return, return_preserves_Rel.
-  }
 
   (* Now on to values: *)
 
@@ -512,190 +463,4 @@ Proof.
     rewrite H1.
     apply dist_preserves_Rel.
     }
-Qed.
-
-
-
-
-Theorem Fund_Thm: forall G o exp, @Fun_Thm_Exp G o exp.
-Proof.
-  apply (exp_val_rec Fun_Thm_Exp Fun_Thm_Val);
-  unfold Fun_Thm_Exp;
-  unfold Fun_Thm_Val;
-  intros;
-  simpl.
-
-  (* valexp *)
-  { specialize (H _ _ H0).
-    exists (ap_Sv s v).
-    split.
-    apply ev_val.
-    apply H.
-    }
-
-  { (* prodexp e1 e2 *)
-    intros.
-    specialize (H _ _ H1).
-    specialize (H0 _ _ H1).
-    destruct (den_expS e r), (den_expS e0 r); simpl; auto.
-    simpl in *.
-    inversion H.
-    inversion H0.
-    exists (prodval x x0).
-    inversion H2; clear H2.
-    inversion H3; clear H3.
-    split.
-    apply ev_prod; auto.
-    unfold Prod_Rel.
-    eauto.
-  }
-
-  { (* proj1exp e *)
-    specialize (H r s H0); clear H0.
-    destruct (den_expS e r); simpl; auto.
-    inversion H. clear H. inversion H0. clear H0.
-    unfold Rel in H1.
-    simpl in H1.
-    unfold Prod_Rel in H1.
-    inversion H1; clear H1.
-    inversion H0; clear H0.
-    inversion H1; clear H1.
-    inversion H2; clear H2.
-    exists x0.
-    split.
-    apply (ev_proj1 _ x0 x1).
-    rewrite H0 in H.
-    apply H.
-    auto.
-  }
-    
- { (* proj2exp e *)
-    specialize (H r s H0); clear H0.
-    destruct (den_expS e r); simpl; auto.
-    inversion H. clear H. inversion H0. clear H0.
-    unfold Rel in H1.
-    simpl in H1.
-    unfold Prod_Rel in H1.
-    inversion H1; clear H1.
-    inversion H0; clear H0.
-    inversion H1; clear H1.
-    inversion H2; clear H2.
-    exists x1.
-    split.
-    apply (ev_proj2 _ x0 x1).
-    rewrite H0 in H.
-    apply H.
-    auto.
-  }
-
-
- { (* appexp e e0 *)
-    specialize (H _ _ H1).
-    specialize (H0 _ _ H1).
-    destruct (den_expS e r), (den_expS e0 r); simpl in *; auto.
-
-    (* work out the first reduction *)
-    inversion H; clear H; intuition.
-    inversion H0; clear H0; intuition.
-    inversion H3 as [e']; clear H3; intuition.
-    subst.
-    (* H: ev (ap_Se s e) (absexp e') *)
-    (* H0: ev (ap_Se s e0) x *)
-
-    (* now the third reduction *)
-    specialize (H5 _ _ H4).
-    destruct (d d0); simpl in *; auto.
-    inversion H5; clear H5; intuition.
-    eauto using ev_app.
-
-  }
-
-  (* bindexp e e0 *)
-  { specialize (H _ _ H1).
-    specialize (H0 _ _ H1).
-    destruct (den_expS e r), (den_expS e0 r); simpl in *; auto.
-    inversion H0; inversion H; intuition.
-    eauto using ev_bind, bind_preserves_Rel.
-  }
-
-  (* returnexp e *)
-  { specialize (H _ _ H0).
-    destruct (den_expS e r); simpl in *; auto.
-    inversion H; intuition.
-    eauto using ev_return, return_preserves_Rel.
-    }
-
-  (* constexp *)
-  { unfold coerce_realS.
-    unfold Real_Rel.
-    eauto. }
-
-  { (* prodval *)
-    specialize (H r s H1).
-    specialize (H0 r s H1).
-    unfold Prod_Rel.
-    eauto.
-    }
-
-  (* varexp  (which is a Val!) *)
-    apply lookup_preserves_Rel. assumption.
-
-  { (* absexp *)
-    unfold Fun_Rel.
-    exists (ap_Se (shift_subst s) e).
-    split; auto.
-    intros.
-
-    assert (H2: (Rel_Env (cons_env a1 r) (cons_subst val2 s))).
-    apply extend_env_preserves_Rel; auto.
-    specialize (H _ _ H2).
-
-    assert (H3: (ap_Se (cons_subst val2 s) e)
-                =
-                (ap_Se (subst1 val2) (ap_Se (shift_subst s) e))).
-    rewrite <- cSS_subst1.
-    rewrite <- ap_cSS_e.
-    auto.
-    rewrite <- H3 in *.
-    apply H.
-    }
-
-  { (* uniformval *)
-    unfold Meas_Rel.
-    intros.
-    unfold uniformopS.
-    exists (constexp (unit_real u)). (* this could be an eexists *)
-    split.
-    apply evs_unif.
-    simpl.
-    unfold Real_Rel.
-    eauto.
-  }
-
-  { (* distval *)
-    (* this should be turned into a lemma distval_preserves_Rel *)
-    specialize (H _ _ H0).
-    unfold Rel in H.
-    unfold Mtype_Rel in H.
-    unfold Real_Rel in H.
-    inversion H; clear H; intuition.
-    subst.
-    rewrite H.
-    apply dist_preserves_Rel.
-  }
-
-
-  { (* bindval *)
-    apply bind_preserves_Rel.
-    specialize (H _ _ H1).
-    specialize (H0 _ _ H1).
-    apply H.
-    specialize (H0 _ _ H1).
-    apply H0.
-  }
-
-  { (* returnval *)
-    apply return_preserves_Rel.
-    specialize (H _ _ H0).
-    apply H. }
 Qed.

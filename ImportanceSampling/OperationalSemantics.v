@@ -91,7 +91,9 @@ Inductive evs : forall {o: Mtype},
         (distval (constexp p))
         (constexp (unit_real u))
         (density_1 p (unit_real u)).
-                    
+
+Hint Constructors ev.
+Hint Constructors evs.                    
 
 
 
