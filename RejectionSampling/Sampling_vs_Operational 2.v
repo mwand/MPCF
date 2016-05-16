@@ -16,7 +16,7 @@ Require Import SamplingSemantics.
 Require Import Substitutions.
 Require Import OperationalSemantics.
 
-(* false_invert: a tactic from SF *)
+(* false_invert: tactic from SF *)
 (* false_invert proves any goal provided there is at least one *)
 (* hypothesis H in the context that can be proved absurd by calling *)
 (* inversion H. *)
@@ -27,49 +27,35 @@ Ltac false_invert :=
     [ H:_ |- _ ] => solve [ inversion H ]
   end.
 
-(* Ltac helpers *)
-Ltac invert_ex :=
-  repeat
-    match goal with
-    | [ H : exists _, _ |- _ ] => inversion H; clear H; intuition
-    end.
-
-Ltac solve_ex := invert_ex; try (eexists; intuition).
-
 
 (* **************************************************************** *)
 
 (* The Logical Relation *)
 
-(* The relation will be defined compositionally in Otype. *)
-
-(* First we build some combinators for the different cases. *)
+(* Defined as a fixed point over Otypes and lifted Otypes *)
 
 Definition EqReal : (den_Mtype Real_type) ->
                     (den_Mtype Real_type) -> Prop :=
   fun v1 v2 => (v1 = v2).
 
+Function Prod_Rel {ma mb : Mtype}
+         (RA : (den_Mtype ma) -> (Val nil (Stype ma)) -> Prop)
+         (RB : (den_Mtype mb) -> (Val nil (Stype mb)) -> Prop)
+         (p  : (den_Mtype (Prod_type ma mb)))
+         (val : (Val nil (Stype (Prod_type ma mb))))
+  := 
+    exists e1 e2, val = prodval e1 e2 /\
+                  (RA (fst p) e1) /\ (RB (snd p) e2).
 
-(* Combinators for Mtypes:  *)
-
-Function Real_Rel
-         (d : (den_Mtype Real_type))
+Function Real_Rel (d : (den_Mtype Real_type))
          (val : (Val nil (Stype Real_type)))
   :=
     exists n, val = constexp n /\ d = n.
 
-Hint Unfold Real_Rel.
 
-Function Prod_Rel {ma mb : Mtype}
-         (RA : (den_Mtype ma) -> (Val nil (Stype ma)) -> Prop)
-         (RB : (den_Mtype mb) -> (Val nil (Stype mb)) -> Prop)
-         (d  : (den_Mtype (Prod_type ma mb)))
-         (val : (Val nil (Stype (Prod_type ma mb))))
-  := 
-    exists e1 e2, val = prodval e1 e2 /\
-                  (RA (fst d) e1) /\ (RB (snd d) e2).
 
-Hint Unfold Prod_Rel.
+(* relation between syntactic values of measurable type and *)
+(* denotations of that type *)
 
 Fixpoint Mtype_Rel (m : Mtype)
   : (den_typeS (Stype m)) -> (Val nil (Stype m)) -> Prop :=
@@ -90,20 +76,16 @@ Function lift_Rel {o : Otype} (R : (den_typeS o) -> (Val nil o) -> Prop)
       | lift a => exists v, ev e v /\ R a v
     end.
 
-Hint Unfold lift_Rel.
-
-Definition Fun_Rel {o1 o2}
-           (Rel1 : (den_typeS o1) -> (Val [] o1) -> Prop)
-           (Rel2 : (lifted (den_typeS o2)) -> (Exp [] o2) -> Prop)
-           (f1 : (den_typeS o1) -> (lifted (den_typeS o2)))
-           (val1 : Val nil (Funtype o1 o2))
+Definition  Fun_Rel {o1 o2}
+            (Rel1 : (den_typeS o1) -> (Val [] o1) -> Prop)
+            (Rel2 : (lifted (den_typeS o2)) -> (Exp [] o2) -> Prop)
+            (f1 : (den_typeS o1) -> (lifted (den_typeS o2)))
+            (val1 : Val nil (Funtype o1 o2))
 : Prop :=
   exists e, val1 = absexp e /\
   forall (a1 : den_typeS o1) (val2: Val [] o1),
     (Rel1 a1 val2) ->
     (Rel2 (f1 a1) (ap_Se (subst1 val2) e)).
-
-Hint Unfold Fun_Rel.
 
 Definition Meas_Rel
            (m : Mtype)
@@ -112,22 +94,19 @@ Definition Meas_Rel
   forall (u:Unit),
     match (s u) with
       | bottom => True
-      | lift (a,w) => exists c', evs u c c' w /\ Mtype_Rel m a c'
+      | lift a => exists c', evs u c c' /\ Mtype_Rel m a c'
     end.
 
-Hint Unfold Meas_Rel.
-
-(* Now the main relation simply branches depending on its Otype argument: *)
+(* This is as far as I got.  Need to fix up Rel to match the types in *)
+(* Types.v and ImportanceSampling.v *)
 
 Fixpoint Rel {o : Otype} : (den_typeS o) -> (Val nil o) -> Prop :=
   match o with
-  | Stype m => Mtype_Rel m
+  | Stype m => fun d => Mtype_Rel m d
   | Funtype o1 o2 => Fun_Rel (@Rel o1)  (lift_Rel (@Rel o2)) 
   | Meastype m => Meas_Rel m
   end.
 
-
-(* Extend the relation to environments based on a type environment G *)
 
 Fixpoint Rel_Env {G} : (den_env G) -> (Subst G nil) -> Prop :=
   match G with
@@ -141,7 +120,8 @@ Lemma lookup_preserves_Rel : forall G (o : Otype)
                        (var : Var G o)
                        (r : den_env G)
                        (s : Subst G nil),
-    Rel_Env r s -> Rel (apply_env r var) (s _ var).
+                                Rel_Env r s
+                                -> Rel (apply_env r var) (s _ var).
 Proof.
   intros.
   induction G as [| o' G'].
@@ -161,8 +141,6 @@ Proof.
   apply H0.
 Qed.
 
-Hint Resolve lookup_preserves_Rel. 
-
 Lemma extend_env_preserves_Rel :
   forall (o: Otype) G r (s : Subst G nil) (d : den_typeS o) (val: Val nil o),
     Rel_Env r s -> Rel d val
@@ -175,14 +153,104 @@ Proof.
   apply H.
 Qed.
 
-Hint Resolve extend_env_preserves_Rel.
 
+(* Lemma bind_preserves_Rel : *)
+(*   forall m m' *)
+(*          (s1 : Unit -> lifted (den_typeS (Stype m))) *)
+(*          (f : (den_typeS (Stype m)) *)
+(*               -> lifted *)
+(*                    (Unit *)
+(*                     -> lifted (den_typeS (Stype m')))) *)
+(*          c1 c2, *)
+(*     Meas_Rel m s1 c1 -> *)
+(*     Fun_Rel (Rel ) (lift_Rel (Meas_Rel m')) f c2 -> *)
+(*     Meas_Rel m' (bindopS s1 f) (bindval c1 c2). *)
+(* Proof.     *)
+(*   intros. *)
+(*   unfold Meas_Rel. *)
+(*   intros u. *)
+(*   destruct (bindopS s1 f u) as [| b] eqn: f_u; auto. *)
+(*   unfold bindopS in f_u. *)
+(*   destruct (s1 (left_half u)) as [| a] eqn: s1_uL; try false_invert; auto. *)
+
+
+(*   (* (s1 u_L) = lift a *) *)
+(*   destruct (f a) as [| s'] eqn: f_a; try false_invert; auto. *)
+(*   simpl in f_u. *)
+(*   rewrite f_a in f_u. *)
+(*   simpl in f_u. *)
+(*   inversion f_u. *)
+
+(*   (* (f a) = lift s' *) *)
+(*   destruct (s' (right_half u)) as [| b'] eqn: s'_uR; auto. *)
+
+(*   (* (s' u_R) = bottom *) *)
+(*   simpl in f_u. *)
+(*   rewrite f_a in f_u. *)
+(*   simpl in f_u. *)
+(*   rewrite s'_uR in f_u. *)
+(*   inversion f_u. *)
+
+(*   (* (s' u_R) = lift b *) *)
+(*   simpl in f_u. *)
+(*   rewrite f_a in *. *)
+(*   simpl in f_u. *)
+
+(*   assert (Hc3: exists c3, (evs (left_half u) c1 c3) /\ Rel a c3). *)
+(*   { rewrite s'_uR in *. *)
+(*     inversion f_u. *)
+(*     rewrite H2 in *. *)
+(*     clear f_u. *)
+(*     unfold Fun_Rel in H0. *)
+(*     inversion H0 as [e2]. clear H0. inversion H1. clear H1. *)
+(*     unfold Meas_Rel in H. *)
+(*     specialize (H (left_half u)). *)
+(*     rewrite s1_uL in H. *)
+(*     inversion H as [c3]; clear H. *)
+(*     exists c3. *)
+(*     apply H1. } *)
     
+(*   inversion Hc3 as [c3]; clear Hc3. *)
+(*   inversion H1; clear H1. *)
+(*   unfold Fun_Rel in H0. *)
+(*   inversion H0 as [e2']; simpl; clear H0. *)
+(*   inversion H1; clear H1. *)
+(*   specialize (H4 a c3 H3). *)
+(*   unfold lift_Rel in H4. *)
+(*   rewrite f_a in H4. *)
+(*   inversion H4 as [c4]; clear H4. *)
+(*   inversion H1; clear H1. *)
+(*   unfold Meas_Rel in H5. *)
+(*   specialize (H5 (right_half u)). *)
+(*   rewrite s'_uR in *. *)
+(*   inversion H5 as [c5]; clear H5. *)
+(*   exists c5. *)
+(*   inversion H1; clear H1. *)
+(*   inversion f_u as [eq_b] ; clear f_u. *)
+(*   rewrite eq_b in *. *)
+(*   split. *)
+(*   assert (H10: ev (appexp (valexp c2) (valexp c3)) c4). *)
+(*   { rewrite H0 in *. *)
+(*     assert (H12: ev (valexp (absexp e2')) (absexp e2')) by apply ev_val. *)
+(*     assert (H13: ev (valexp c3) c3) by apply ev_val. *)
+
+(*     Check ev_app. *)
+(*     apply (ev_app H12 H13 H4). *)
+(*   } *)
+(*   apply (evs_bind H2 H10 H5). *)
+(*   (* woo-hoo! *) *)
+(*   apply H6. *)
+(* Qed. *)
+
+(* Here's a cleaner proof of this. *)
+
 Lemma bind_preserves_Rel :
   forall m m'
-         (s1 : den_typeS (Meastype m))
+         (s1 : Unit -> lifted (den_typeS (Stype m)))
          (f : (den_typeS (Stype m))
-              -> lifted (den_typeS (Meastype m')))
+              -> lifted
+                   (Unit
+                    -> lifted (den_typeS (Stype m'))))
          c1 c2,
     Meas_Rel m s1 c1 ->
     Fun_Rel (Rel ) (lift_Rel (Meas_Rel m')) f c2 ->
@@ -194,18 +262,10 @@ Proof.
   destruct (bindopS s1 f u) as [|b]  eqn: f_u; try false_invert; auto.
   unfold bindopS in f_u.
   destruct (s1 (left_half u)) eqn: s1_uL; try false_invert; simpl in *; auto.
-
-  destruct b.
-  unfold prod_curry in f_u.
-  destruct p.
-  destruct (f d0) as [| s2] eqn: f_d; try false_invert; auto.
+  destruct (f d) as [| s2] eqn: f_d; try false_invert; auto.
   simpl in f_u.
   destruct (s2 (right_half u)) as [| b'] eqn: s2_uR; try false_invert; simpl in *; auto.
-  unfold prod_curry in f_u.
-  destruct b'.
-  inversion f_u; clear f_u.
-  (* rewrite H2 in *. *)
-  subst.
+  rewrite f_u in *.
 
   (* now we have all the denotations, next let's work on the 
      reductions *)
@@ -241,81 +301,16 @@ Proof.
   specialize (H2 (right_half u)).
   rewrite s2_uR in *.
   inversion H2 as [c5]; clear H2.
-  inversion H as [Red3a Red3b]; clear H.
+  inversion H as [Red3a Red3b].
   exists c5.
   split.
   apply (evs_bind Red1a Red2 Red3a).
   apply Red3b.
 Qed.
 
-Hint Resolve bind_preserves_Rel. 
 
-Lemma bind_preserves_Rel' :
-  forall m m'
-         (s1 : den_typeS (Meastype m))
-         (f : (den_typeS (Stype m))
-              -> lifted (den_typeS (Meastype m')))
-         c1 c2,
-    Meas_Rel m s1 c1 ->
-    Fun_Rel (Rel ) (lift_Rel (Meas_Rel m')) f c2 ->
-    Meas_Rel m' (bindopS s1 f) (bindval c1 c2).
-Proof.    
-  intros.
-  unfold Meas_Rel.
-  intros.
-  destruct (bindopS s1 f u) as [|b]  eqn: f_u; try false_invert; auto.
-  unfold bindopS in f_u.
-  destruct (s1 (left_half u)) eqn: s1_uL; try false_invert; simpl in *; auto.
 
-  destruct b.
-  unfold prod_curry in f_u.
-  destruct p.
-  destruct (f d0) as [| s2] eqn: f_d; try false_invert; auto.
-  simpl in f_u.
-  destruct (s2 (right_half u)) as [| b'] eqn: s2_uR; try false_invert; simpl in *; auto.
-  unfold prod_curry in f_u.
-  destruct b'.
-  inversion f_u; clear f_u.
-  subst.
- 
-
-  (* now we have all the denotations, next let's work on the 
-     reductions *)
-
-  (* First reduction: evs (left_half u) c1 c3 *)
-  unfold Meas_Rel in H.
-  specialize (H (left_half u)).
-  rewrite s1_uL in H; simpl in H.
-  inversion H; clear H.
-  inversion H1 as [Red1a Red1b]; clear H1.
-
-  (* second reduction: ev (appexp (valexp c2) (valexp c3)) c4 *)
-  (* c2: is a function, so it has to be an abstraction *)
-
-  unfold Fun_Rel in H0.
-  inversion H0 as [e]; clear H0.
-  inversion H; clear H.
-
-  specialize (H1 _ _ Red1b).
-  unfold lift_Rel in H1.
-  rewrite f_d in *; simpl in *.
-  inversion H1; clear H1.
-  inversion H; clear H.
-
-  (* finish unfolding *)
-  unfold Meas_Rel in H2.
-  specialize (H2 (right_half u)).
-  rewrite s2_uR in *.
-  inversion H2; clear H2.
-  inversion H.
-
-  (* Now patch the pieces together.  Coq is actually good at this! *)
-
-  subst.
-  eauto using evs_bind, ev_app, ev_val.
-Qed.
-
-Hint Resolve bind_preserves_Rel'.
+Hint Resolve bind_preserves_Rel.
 
 Lemma return_preserves_Rel :
   forall m (v : den_typeS (Stype m)) (c : Val nil (Stype m)),
@@ -350,42 +345,6 @@ Qed.
 
 Hint Resolve unif_preserves_Rel.
 
-Lemma dist_preserves_Rel :
-  forall r,
-    Meas_Rel _ (distvalS r) (distval (constexp r)).
-Proof.
-  intros.
-  unfold Meas_Rel.
-  intros.
-  simpl.
-  eexists.
-  split.
-  apply evs_dist.
-  unfold Real_Rel.
-  eauto.
-Qed.
-
-Lemma dist_preserves_Rel':
-  forall d v,
-    Real_Rel d v -> Meas_Rel Real_type (distvalS d) (distval v).
-Proof.
-  intros.
-  autounfold in *.
-  invert_ex.
-  subst.
-  eexists.
-  split.
-  eapply evs_dist.
-  unfold Mtype_Rel.
-  unfold Real_Rel.
-  eauto.
-Qed.
-
-(* This should really be of the form
-  forall d v, Rel d v -> Meas_Rel _ (distvalS d) (distval v)
-
- *)
-
 (* **************************************************************** *)
 
 (* The Fundamental Theorem *)
@@ -405,194 +364,6 @@ Definition Fun_Thm_Val G o   (val: Val G o):=
          (s : Subst G nil),
     Rel_Env r s
     -> @Rel o (den_valS val r) (ap_Sv s val).
-
-(* Tactics for proving the fundamental theorem *)
-
-
-
-Ltac auto_specialize :=
-  repeat
-    match goal with
-    | [ H : forall x : ?a, _, v : ?a |- _ ] => specialize H with (x:=v)
-    | [ H : ?a -> _, v : ?a |- _ ] =>
-      let Hv := fresh H in
-      apply H in v as Hv; clear H
-    end.
-
-Ltac destruct_lift :=
-  match goal with
-  | [ H : lift_Rel _ ?x _ |- _ ] =>
-    match x with
-    | bottom => fail 1
-    | lift _ => fail 1
-    | _ => destruct x
-    end
-  end.
-
-Theorem Fund_Thm_Proof3 : forall G o exp, @Fun_Thm_Exp G o exp.
-Proof.
-  apply (exp_val_rec Fun_Thm_Exp Fun_Thm_Val);
-  unfold Fun_Thm_Exp;
-  unfold Fun_Thm_Val;
-  simpl; intros;
-    try (auto_specialize;
-         repeat (destruct_lift; simpl in *; auto);
-         repeat invert_ex;
-         unfold Prod_Rel, Fun_Rel in *).
-           
-
-  { (* valexp *)
-    eauto using ev_val.
-    }
-
-  { (* prodexp *)
-    solve_ex.
-    eauto using ev_prod.
-    eexists.
-    eexists.
-    eauto.
-    }
-
-  { (* proj1exp *)
-    invert_ex.
-    subst.
-    eauto using ev_proj1.
-  }
-  
-  { (* proj2exp *)
-    invert_ex.
-    subst.
-    eauto using ev_proj2.
-  } 
-
-  { (* appexp e e0 *)
-    invert_ex.
-    destruct (d0 d) eqn: d0_d; unfold lift_Rel; auto.
-    invert_ex.
-    subst.
-    auto_specialize.
-    rewrite d0_d in *.
-    apply H5 in H3; clear H5.
-    unfold lift_Rel in H3.
-    invert_ex.
-    eexists.
-    eauto using ev_app.
-    }
-
-  { (* bindexp e e0 *)
-    invert_ex.
-    subst.
-    eexists.
-    split.
-    eauto using ev_bind.
-    eauto using bind_preserves_Rel'.
-  }
-
-  { (* returnexp e *)
-    eauto using ev_return, return_preserves_Rel.
-  }
-
-  (* Now on to values: *)
-
-  { (* valexp *)   (* this is one that the header got *)
-    unfold Real_Rel.
-    eauto.
-  }
-
-  { (* prodval *)
-    unfold Prod_Rel.
-    eauto.
-  }
-
-  { (* varexp *)
-    (* eauto using lookup_preserves_Rel doesn't work here. *)
-    apply lookup_preserves_Rel.
-    eauto.
-  }
-
-  { (* absexp *)
-    unfold Fun_Rel.
-    eexists.
-    intuition.
-    replace (ap_Se (subst1 val2) (ap_Se (shift_subst s) e))
-    with (ap_Se (cons_subst val2 s) e)
-      by (rewrite <- cSS_subst1, <- ap_cSS_e; auto).
-    auto.
-  }
-
-  { (* uniformval *)
-    auto using unif_preserves_Rel.
-  }
-
-  { (* distval *)
-    auto using dist_preserves_Rel'.
-  }
-
-  { (* bindval *)
-    auto using bind_preserves_Rel'.
-  }
-
-  { (* returnval *)
-    auto using return_preserves_Rel.
-  }
-Qed.
-
-Theorem Fund_Thm_NewProof : forall G o exp, @Fun_Thm_Exp G o exp.
-Proof.
-  apply (exp_val_rec Fun_Thm_Exp Fun_Thm_Val);
-  unfold Fun_Thm_Exp;
-  unfold Fun_Thm_Val;
-  simpl; intros;
-    (* this script knocks off 5 cases *)
-  try solve [auto_specialize; eauto;
-                  repeat destruct_lift;
-                  unfold Prod_Rel, lift_Rel in *;
-                  solve_ex; subst; eauto].
-
-  { (* appexp e e0 *)
-    auto_specialize.
-    repeat destruct_lift; eauto.
-    simpl in *.
-    invert_ex.
-    destruct (d0 d) eqn: d0_d; unfold lift_Rel; auto.
-    unfold Fun_Rel in *.
-    invert_ex.
-    subst.
-    auto_specialize.
-    rewrite d0_d in *.
-    simpl in H4.
-    invert_ex.
-    eauto using ev_app.
-    }
-
-  (* Now on to values: *)
-
-  { (* varexp *)
-    apply lookup_preserves_Rel.
-    assumption.
-  }
-
-  { (* absexp *)
-    unfold Fun_Rel.
-    solve_ex.
-    replace (ap_Se (subst1 val2) (ap_Se (shift_subst s) e))
-    with (ap_Se (cons_subst val2 s) e)
-      by (rewrite <- cSS_subst1, <- ap_cSS_e; auto).
-    auto.
-    }
-
-  { (* distval *)
-    auto_specialize.
-    unfold Real_Rel in H1.
-    invert_ex.
-    subst.
-    rewrite H1.
-    apply dist_preserves_Rel.
-    }
-Qed.
-
-
-
 
 Theorem Fund_Thm: forall G o exp, @Fun_Thm_Exp G o exp.
 Proof.
@@ -669,53 +440,78 @@ Proof.
  { (* appexp e e0 *)
     specialize (H _ _ H1).
     specialize (H0 _ _ H1).
-    destruct (den_expS e r), (den_expS e0 r); simpl in *; auto.
+    destruct (den_expS e r), (den_expS e0 r);
+      try false_invert; auto; simpl in *.
 
     (* work out the first reduction *)
-    inversion H; clear H; intuition.
-    inversion H0; clear H0; intuition.
-    inversion H3 as [e']; clear H3; intuition.
-    subst.
+    inversion H as [c2]; clear H.
+    inversion H2; clear H2.
+    inversion H3 as [e']; clear H3.
+    inversion H2; clear H2.
+    rewrite H3 in *.
     (* H: ev (ap_Se s e) (absexp e') *)
-    (* H0: ev (ap_Se s e0) x *)
+
+    (* work out the second reduction *)
+    inversion H0 as [v]; clear H0.
+    inversion H2; clear H2.
+    (* H0: ev (ap_Se s e0) v *)
 
     (* now the third reduction *)
-    specialize (H5 _ _ H4).
-    destruct (d d0); simpl in *; auto.
-    inversion H5; clear H5; intuition.
-    eauto using ev_app.
+    specialize (H4 d0 v H5).
+    destruct (d d0); try false_invert; auto; simpl in *.
+    inversion H4 as [w]; clear H4.
+    exists w.
+    inversion H2; clear H2.
+    split.
+    apply (ev_app H H0 H4).
+    auto.
 
   }
 
   (* bindexp e e0 *)
   { specialize (H _ _ H1).
     specialize (H0 _ _ H1).
-    destruct (den_expS e r), (den_expS e0 r); simpl in *; auto.
-    inversion H0; inversion H; intuition.
-    eauto using ev_bind, bind_preserves_Rel.
-  }
+    destruct (den_expS e r), (den_expS e0 r);
+      try false_invert; auto.
+    simpl in *.
+    inversion H as [c1]; clear H.
+    inversion H2; clear H2.
+    inversion H0 as [c2]; clear H0.
+    inversion H2; clear H2.
+    exists (bindval c1 c2).
+    split.
+    apply ev_bind; auto.
+    apply bind_preserves_Rel; auto. }
 
   (* returnexp e *)
   { specialize (H _ _ H0).
-    destruct (den_expS e r); simpl in *; auto.
-    inversion H; intuition.
-    eauto using ev_return, return_preserves_Rel.
-    }
+    unfold lift_Rel.
+    destruct (den_expS e r) as [|v1] eqn: eq_e; auto.
+    simpl.
+    unfold lift_Rel in H.
+    inversion H as [v]; clear H.
+    inversion H1; clear H1.
+    exists (returnval v).
+    split.
+    apply ev_return.
+    apply H.
+    apply return_preserves_Rel.
+    apply H2. }
 
   (* constexp *)
   { unfold coerce_realS.
     unfold Real_Rel.
     eauto. }
 
-  { (* prodval *)
+  { (* prodexp *)
     specialize (H r s H1).
     specialize (H0 r s H1).
     unfold Prod_Rel.
     eauto.
     }
 
-  (* varexp  (which is a Val!) *)
-    apply lookup_preserves_Rel. assumption.
+  (* varexp *)
+    apply lookup_preserves_Rel. apply H.
 
   { (* absexp *)
     unfold Fun_Rel.
@@ -741,26 +537,13 @@ Proof.
     unfold Meas_Rel.
     intros.
     unfold uniformopS.
-    exists (constexp (unit_real u)). (* this could be an eexists *)
+    exists (constexp (unit_real u)).
     split.
     apply evs_unif.
     simpl.
     unfold Real_Rel.
     eauto.
-  }
-
-  { (* distval *)
-    (* this should be turned into a lemma distval_preserves_Rel *)
-    specialize (H _ _ H0).
-    unfold Rel in H.
-    unfold Mtype_Rel in H.
-    unfold Real_Rel in H.
-    inversion H; clear H; intuition.
-    subst.
-    rewrite H.
-    apply dist_preserves_Rel.
-  }
-
+    }
 
   { (* bindval *)
     apply bind_preserves_Rel.
@@ -776,3 +559,6 @@ Proof.
     specialize (H _ _ H0).
     apply H. }
 Qed.
+
+
+  
