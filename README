@@ -1,11 +1,26 @@
 This repo is for Coq developments pertaining to our work on MPCF, a
 measure-theoretic version of PCF.
 
-ICFP-2016 contains a development of a language largely the same as the one in
-our ICFP submission.
+MPCF starts with PCF and adds probabilistic effects via a monadic metalanguage. 
 
-ImportanceSampling adds an arbitrary (non-uniform) primitive
+RejectionSampling/ contains an elementary version of this language,
+with uniform sampling and products.
+
+ImportanceSampling/ adds an arbitrary (non-uniform) primitive
 distribution with a density function; samples are weighted according
 to their density.
+
+Observations/ adds observations from that primitive distribution.
+
+We believe that all these developments have run successfully in Coq
+8.5p11 .
+
+However, all depend on the same assumption, namely that the
+function bindopM, (fun a => strict0 (f a) (fun mu' => (mu' k))) in
+MeasureSemantics.v, is itself always measurable.  We believe that some
+version of this assumption is true, but we have been unable to prove
+it.
+
+
 
 

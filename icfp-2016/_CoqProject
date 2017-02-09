@@ -1,9 +1,0 @@
--R . ICFP-2016
-LiftedTypes.v
-Measures.v
-MyReals.v
-Types.v
-Weights.v
-ImportanceSampling.v
-Adequacy.v
-
